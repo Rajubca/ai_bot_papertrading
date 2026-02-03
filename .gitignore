@@ -1,13 +1,6 @@
-# Logs
-*.log
-# Dependency directories
 node_modules/
-# Build output
-dist/
-build/
-# Environment variables
+.next/
+__pycache__/
+*.pyc
 .env
-venv/
-# IDE settings
-vscode/
-idea/
+.DS_Store

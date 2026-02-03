@@ -1,11 +1,21 @@
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+
 from app.auth.dependencies import get_current_user
-from app.agent.chat import chat_with_agent
-from app.db import crud
 
 router = APIRouter()
 
+
+class ChatRequest(BaseModel):
+    message: str
+
+
 @router.post("/chat")
-def chat(payload: dict, user=Depends(get_current_user)):
-    context = crud.build_user_context(user["id"])
-    return chat_with_agent(payload["message"], context)
+def chat_with_agent(
+    payload: ChatRequest,
+    user=Depends(get_current_user),
+):
+    return {
+        "role": "AGENT",
+        "reply": f"AI analysis placeholder for user {user['id']}: {payload.message}",
+    }

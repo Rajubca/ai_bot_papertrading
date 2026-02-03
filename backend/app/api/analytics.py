@@ -1,13 +1,24 @@
 from fastapi import APIRouter, Depends
-from app.auth.dependencies import get_current_user
+from sqlalchemy.orm import Session
+
 from app.db.session import SessionLocal
-from app.analytics.engine import get_trade_stats
+from app.auth.dependencies import get_current_user
+from app.api.pnl import get_today_pnl
 
 router = APIRouter()
 
-@router.get("")
-def analytics(user=Depends(get_current_user)):
+
+def get_db():
     db = SessionLocal()
-    stats = get_trade_stats(db, user["id"])
-    db.close()
-    return stats
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.get("")
+def analytics(
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    return get_today_pnl(db=db, user=user)

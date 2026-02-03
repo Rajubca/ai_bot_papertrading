@@ -19,21 +19,10 @@ def get_db():
 @router.get("")
 def get_portfolio(
     db: Session = Depends(get_db),
-    user=Depends(get_current_user)
+    user=Depends(get_current_user),
 ):
-    """
-    Returns user's current portfolio:
-    - balance
-    - open positions
-    """
-
     user_row = db.query(User).filter(User.id == user["id"]).first()
-
-    positions = (
-        db.query(Position)
-        .filter(Position.user_id == user["id"])
-        .all()
-    )
+    positions = db.query(Position).filter(Position.user_id == user["id"]).all()
 
     return {
         "balance": float(user_row.balance) if user_row else 0,

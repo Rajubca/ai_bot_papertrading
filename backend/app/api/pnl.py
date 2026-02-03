@@ -6,14 +6,7 @@ from app.db.session import SessionLocal
 from app.auth.dependencies import get_current_user
 from app.db.models import DailyPNL, Trade
 
-
-
-
-
-
 router = APIRouter()
-
-
 
 
 def get_db():
@@ -29,10 +22,6 @@ def get_today_pnl(
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """
-    Returns today's PnL (realized + unrealized)
-    """
-
     today = date.today()
 
     row = (
@@ -52,13 +41,11 @@ def get_today_pnl(
             "total_pnl": float(row.realized_pnl + row.unrealized_pnl),
         }
 
-    # fallback: calculate realized pnl from closed trades today
     trades = (
         db.query(Trade)
         .filter(
             Trade.user_id == user["id"],
             Trade.status == "CLOSED",
-            Trade.executed_at >= today,
         )
         .all()
     )

@@ -1,44 +1,44 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from app.db.session import SessionLocal
 from app.auth.dependencies import get_current_user
-from app.market.nse import get_price
 from app.trading.engine import execute_trade
-from app.db import crud
 
 router = APIRouter()
 
-@router.post("")
-def place_trade(payload: dict, user=Depends(get_current_user)):
-    db: Session = SessionLocal()
+
+class TradeRequest(BaseModel):
+    symbol: str
+    side: str  # BUY / SELL
+    quantity: int
+    trade_notes: str | None = None
+
+
+def get_db():
+    db = SessionLocal()
     try:
-        symbol = payload["symbol"].upper()
-        side = payload["side"]
-        quantity = int(payload["quantity"])
-
-        if quantity <= 0:
-            raise HTTPException(400, "Invalid quantity")
-
-        market_price = get_price(symbol)
-
-        result = execute_trade(
-            db=db,
-            user_id=user["id"],
-            symbol=symbol,
-            side=side,
-            quantity=quantity,
-            price=market_price,
-            payload=payload
-        )
-
-        return result
-
-    except KeyError as e:
-        raise HTTPException(400, f"Missing field {str(e)}")
-
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
+        yield db
     finally:
         db.close()
+
+
+@router.post("")
+def place_trade(
+    payload: TradeRequest,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    if payload.side not in ("BUY", "SELL"):
+        raise HTTPException(status_code=400, detail="Invalid side")
+
+    return execute_trade(
+        db=db,
+        user_id=user["id"],
+        symbol=payload.symbol,
+        side=payload.side,
+        quantity=payload.quantity,
+        price=100.0,  # mock price
+        payload={"trade_notes": payload.trade_notes},
+    )

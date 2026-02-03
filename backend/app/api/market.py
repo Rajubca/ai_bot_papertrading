@@ -1,12 +1,16 @@
 from fastapi import APIRouter, Query
-from app.market.price import get_live_price
+import random
 
 router = APIRouter()
 
+
 @router.get("/quote")
 def get_quote(symbol: str = Query(...)):
-    price = get_live_price(symbol.upper())
+    """
+    Mock market price
+    Replace with NSE / yfinance later
+    """
     return {
-        "symbol": symbol.upper(),
-        "ltp": price
+        "symbol": symbol,
+        "ltp": round(random.uniform(100, 3000), 2),
     }

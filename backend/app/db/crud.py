@@ -1,6 +1,17 @@
 from app.db.models import User, Trade, Position
 from app.db.models import Position
 
+def create_user(db, name: str, email: str, password_hash: str):
+    user = User(
+        name=name,
+        email=email,
+        password_hash=password_hash,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
 def get_position(db, user_id, symbol):
     return (
         db.query(Position)
@@ -65,3 +76,4 @@ def update_position(db, user_id, symbol, side, quantity, price):
         db.add(position)
 
     db.commit()
+

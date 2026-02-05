@@ -1,12 +1,8 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-
+from app.auth.dependencies import decode_access_token
 from app.db.session import SessionLocal
-from app.auth.dependencies import get_current_user
-from app.api.pnl import get_today_pnl
 
 router = APIRouter()
-
 
 def get_db():
     db = SessionLocal()
@@ -15,10 +11,16 @@ def get_db():
     finally:
         db.close()
 
-
 @router.get("")
 def analytics(
-    db: Session = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(decode_access_token),
+    db=Depends(get_db)
 ):
-    return get_today_pnl(db=db, user=user)
+    # user["id"] is now REAL
+    return {
+        "total_trades": 0,
+        "win_rate": 0,
+        "avg_win": 0,
+        "expectancy": 0,
+        "max_win_streak": 0
+    }

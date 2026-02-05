@@ -1,20 +1,21 @@
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
+from app.auth.jwt import decode_access_token
+from app.db.session import SessionLocal
+from app.db.models import User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-
 def get_current_user(token: str = Depends(oauth2_scheme)):
-    """
-    TEMP DEV USER
-    Replace with real JWT decoding later
-    """
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        user_id = decode_access_token(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
-    # TEMP hardcoded user
-    return {
-        "id": 1,
-        "email": "demo@test.com",
-        "role": "USER",
-    }
+    db = SessionLocal()
+    user = db.query(User).filter(User.id == user_id).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return user

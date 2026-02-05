@@ -3,98 +3,168 @@ import requests
 
 API_BASE = "http://127.0.0.1:8000"
 
-st.set_page_config(page_title="Paper Trading Analytics", layout="wide")
-st.title("📊 Paper Trading – Analytics Dashboard")
+# ----------------------------
+# PAGE CONFIG
+# ----------------------------
+st.set_page_config(
+    page_title="AI Paper Trading",
+    layout="wide"
+)
+
+st.title("📊 AI Paper Trading Platform")
 
 # ----------------------------
-# AUTH TOKEN (URL → Sidebar)
+# SESSION STATE
 # ----------------------------
+if "token" not in st.session_state:
+    st.session_state.token = None
 
-# 1️⃣ Read token from URL (if present)
-query_params = st.query_params
-url_token = query_params.get("token", [""])[0]
+if "chat" not in st.session_state:
+    st.session_state.chat = []
 
-# 2️⃣ Sidebar input (fallback / override)
+# ----------------------------
+# AUTH SIDEBAR
+# ----------------------------
 st.sidebar.header("🔐 Authentication")
-input_token = st.sidebar.text_input(
-    "Paste JWT Token",
-    type="password",
-    value=url_token
-).strip()
 
-# 3️⃣ Final token decision
-token = input_token
+if not st.session_state.token:
+    tab_login, tab_register = st.sidebar.tabs(["Login", "Register"])
 
-if not token:
-    st.info(
-        "Login at http://localhost:3000/login and paste your JWT token here.\n\n"
-        "This analytics panel is for internal/admin use."
-    )
+    # -------- LOGIN --------
+    with tab_login:
+        login_email = st.text_input("Email", key="login_email")
+        login_password = st.text_input(
+            "Password", type="password", key="login_password"
+        )
+
+        if st.button("Login"):
+            res = requests.post(
+                f"{API_BASE}/api/auth/login",
+                json={
+                    "email": login_email,
+                    "password": login_password,
+                },
+                timeout=5,
+            )
+
+            if res.status_code == 200:
+                data = res.json()
+                st.session_state.token = data["access_token"]
+                st.success("Login successful")
+                st.rerun()
+            else:
+                try:
+                    st.error(res.json().get("detail", "Login failed"))
+                except Exception:
+                    st.error("Login failed")
+
+    # -------- REGISTER --------
+    with tab_register:
+        reg_name = st.text_input("Name", key="reg_name")
+        reg_email = st.text_input("Email", key="reg_email")
+        reg_password = st.text_input(
+            "Password", type="password", key="reg_password"
+        )
+
+        if st.button("Register"):
+            res = requests.post(
+                f"{API_BASE}/api/auth/register",
+                json={
+                    "name": reg_name,
+                    "email": reg_email,
+                    "password": reg_password,
+                },
+                timeout=5,
+            )
+
+            if res.status_code == 200:
+                st.success("Registration successful. Please login.")
+            else:
+                try:
+                    st.error(res.json().get("detail", "Registration failed"))
+                except Exception:
+                    st.error("Registration failed")
+
     st.stop()
 
+# ----------------------------
+# AUTH HEADERS
+# ----------------------------
 HEADERS = {
-    "Authorization": f"Bearer {token}",
+    "Authorization": f"Bearer {st.session_state.token}",
     "Content-Type": "application/json",
 }
 
 # ----------------------------
-# Backend Health + Core Stats
+# LOGOUT
+# ----------------------------
+if st.sidebar.button("Logout"):
+    st.session_state.token = None
+    st.session_state.chat = []
+    st.rerun()
+
+# ----------------------------
+# BACKEND HEALTH
 # ----------------------------
 st.subheader("🔌 Backend Status")
 
 try:
-    stats = requests.get(
+    analytics_res = requests.get(
         f"{API_BASE}/api/analytics",
         headers=HEADERS,
-        timeout=5
-    ).json()
+        timeout=5,
+    )
 
-    pnl = requests.get(
+    pnl_res = requests.get(
         f"{API_BASE}/api/pnl/today",
         headers=HEADERS,
-        timeout=5
-    ).json()
+        timeout=5,
+    )
 
-    st.success("Authenticated & connected to backend")
+    if analytics_res.status_code != 200:
+        st.error("Unauthorized or session expired")
+        st.stop()
+
+    analytics = analytics_res.json()
+    pnl = pnl_res.json()
+
+    st.success("Authenticated & connected")
 
 except Exception as e:
-    st.error("Authentication failed or backend unreachable")
+    st.error("Backend unreachable")
     st.code(str(e))
     st.stop()
 
 # ----------------------------
-# PnL Summary
+# PNL SUMMARY
 # ----------------------------
 st.subheader("💰 PnL Summary")
 
-p1, p2, p3, p4 = st.columns(4)
+c1, c2, c3, c4 = st.columns(4)
 
-p1.metric("Realized PnL", pnl.get("realized_pnl", 0))
-p2.metric("Unrealized PnL", pnl.get("unrealized_pnl", 0))
-p3.metric("Total PnL", pnl.get("total_pnl", 0))
-p4.metric("Win Rate (%)", stats.get("win_rate", 0))
+c1.metric("Realized PnL", pnl.get("realized_pnl", 0))
+c2.metric("Unrealized PnL", pnl.get("unrealized_pnl", 0))
+c3.metric("Total PnL", pnl.get("total_pnl", 0))
+c4.metric("Win Rate (%)", analytics.get("win_rate", 0))
 
 # ----------------------------
-# Analytics Section
+# ANALYTICS
 # ----------------------------
 st.subheader("📈 Trade Analytics")
 
 a1, a2, a3, a4 = st.columns(4)
 
-a1.metric("Total Trades", stats.get("total_trades", 0))
-a2.metric("Avg Win", stats.get("avg_win", 0))
-a3.metric("Expectancy", stats.get("expectancy", 0))
-a4.metric("Max Win Streak", stats.get("max_win_streak", 0))
+a1.metric("Total Trades", analytics.get("total_trades", 0))
+a2.metric("Avg Win", analytics.get("avg_win", 0))
+a3.metric("Expectancy", analytics.get("expectancy", 0))
+a4.metric("Max Win Streak", analytics.get("max_win_streak", 0))
 
 # ----------------------------
-# AI Chat Section
+# AI CHAT
 # ----------------------------
 st.subheader("🤖 AI Trading Assistant")
 
-if "chat" not in st.session_state:
-    st.session_state.chat = []
-
-user_input = st.text_input("Ask the AI about performance, risk, or trades")
+user_input = st.text_input("Ask about performance, risk, or trades")
 
 if st.button("Send") and user_input:
     try:
@@ -103,18 +173,23 @@ if st.button("Send") and user_input:
             headers=HEADERS,
             json={"message": user_input},
             timeout=10,
-        ).json()
+        )
 
         st.session_state.chat.append(("You", user_input))
 
-        ai_reply = (
-            res.get("reply")
-            or res.get("summary")
-            or res.get("message")
-            or str(res)
-        )
-
-        st.session_state.chat.append(("AI", ai_reply))
+        if res.status_code == 200:
+            data = res.json()
+            reply = (
+                data.get("reply")
+                or data.get("summary")
+                or data.get("message")
+                or str(data)
+            )
+            st.session_state.chat.append(("AI", reply))
+        else:
+            st.session_state.chat.append(
+                ("AI", "AI service error")
+            )
 
     except Exception as e:
         st.error(f"AI error: {e}")

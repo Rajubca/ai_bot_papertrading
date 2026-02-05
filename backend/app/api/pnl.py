@@ -2,12 +2,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from datetime import date
 
+from app.auth.dependencies import decode_access_token as decode_token
 from app.db.session import SessionLocal
-from app.auth.dependencies import get_current_user
-from app.db.models import DailyPNL, Trade
+from app.db.models import DailyPNL
 
 router = APIRouter()
-
 
 def get_db():
     db = SessionLocal()
@@ -16,15 +15,14 @@ def get_db():
     finally:
         db.close()
 
-
 @router.get("/today")
 def get_today_pnl(
+    user=Depends(decode_token),
     db: Session = Depends(get_db),
-    user=Depends(get_current_user),
 ):
     today = date.today()
 
-    row = (
+    pnl = (
         db.query(DailyPNL)
         .filter(
             DailyPNL.user_id == user["id"],
@@ -33,32 +31,17 @@ def get_today_pnl(
         .first()
     )
 
-    if row:
+    if not pnl:
         return {
-            "date": str(today),
-            "realized_pnl": float(row.realized_pnl),
-            "unrealized_pnl": float(row.unrealized_pnl),
-            "total_pnl": float(row.realized_pnl + row.unrealized_pnl),
+            "realized_pnl": 0,
+            "unrealized_pnl": 0,
+            "total_pnl": 0,
         }
 
-    trades = (
-        db.query(Trade)
-        .filter(
-            Trade.user_id == user["id"],
-            Trade.status == "CLOSED",
-        )
-        .all()
-    )
-
-    realized = sum(
-        float(t.price * t.quantity)
-        for t in trades
-        if t.side == "SELL"
-    )
+    total = float(pnl.realized_pnl) + float(pnl.unrealized_pnl)
 
     return {
-        "date": str(today),
-        "realized_pnl": realized,
-        "unrealized_pnl": 0.0,
-        "total_pnl": realized,
+        "realized_pnl": float(pnl.realized_pnl),
+        "unrealized_pnl": float(pnl.unrealized_pnl),
+        "total_pnl": total,
     }

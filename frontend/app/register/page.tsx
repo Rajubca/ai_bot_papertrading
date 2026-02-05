@@ -1,64 +1,103 @@
 "use client";
 
 import { useState } from "react";
-import { register } from "@/lib/auth";
 import { useRouter } from "next/navigation";
+import { register } from "@/lib/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit() {
+  async function handleRegister() {
     setError(null);
+    setLoading(true);
+
     try {
       await register(name, email, password);
       router.push("/login");
-    } catch (e: any) {
-      setError(e.message);
+    } catch {
+      setError("Registration failed. Try another email.");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="max-w-md mx-auto mt-20 space-y-4">
-      <h1 className="text-2xl font-bold">Register</h1>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-black px-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold text-slate-900">
+            Create Account
+          </h1>
+          <p className="text-slate-500 mt-2">
+            Start paper trading with AI insights
+          </p>
+        </div>
 
-      <input
-        className="border p-2 w-full"
-        placeholder="Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-      />
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-2 text-sm">
+            {error}
+          </div>
+        )}
 
-      <input
-        className="border p-2 w-full"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-      />
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Full Name
+          </label>
+          <input
+            type="text"
+            placeholder="Raju Patel"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
 
-      <input
-        className="border p-2 w-full"
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Email
+          </label>
+          <input
+            type="email"
+            placeholder="you@example.com"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
 
-      <button className="border px-4 py-2 w-full" onClick={submit}>
-        Register
-      </button>
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Password
+          </label>
+          <input
+            type="password"
+            placeholder="Minimum 6 characters"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
 
-      {error && <div className="text-red-600">{error}</div>}
+        <button
+          onClick={handleRegister}
+          disabled={loading}
+          className="w-full rounded-lg bg-slate-900 text-white py-2.5 font-medium hover:bg-slate-800 transition disabled:opacity-50"
+        >
+          {loading ? "Creating account..." : "Register"}
+        </button>
 
-      <p className="text-sm">
-        Already have an account?{" "}
-        <a className="underline" href="/login">
-          Login
-        </a>
-      </p>
+        <p className="mt-6 text-center text-sm text-slate-600">
+          Already have an account?{" "}
+          <a href="/login" className="font-medium text-slate-900 hover:underline">
+            Login
+          </a>
+        </p>
+      </div>
     </div>
   );
 }

@@ -14,6 +14,8 @@ app.include_router(analytics.router, prefix="/api/analytics")
 app.include_router(market_router, prefix="/api/market")
 app.include_router(chat.router, prefix="/api/agent")
 app.include_router(reports.router, prefix="/api/reports")
+# app.include_router(chat.router, prefix="/api/agent")
+
 
 
 # -------- HEALTH CHECK --------

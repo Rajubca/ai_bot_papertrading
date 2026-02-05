@@ -17,7 +17,7 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     email = Column(String(150), nullable=False, unique=True)
-    password_hash = Column(String(255), nullable=False)
+    password_hash = Column(String(255), nullable=True)
     balance = Column(DECIMAL(15, 2), default=100000.00)
     status = Column(Enum("ACTIVE", "BLOCKED"), default="ACTIVE")
     created_at = Column(DateTime, default=datetime.utcnow)

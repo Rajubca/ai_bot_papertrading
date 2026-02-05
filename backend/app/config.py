@@ -2,12 +2,16 @@ from pydantic_settings import BaseSettings
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 class Settings(BaseSettings):
     # Core
-    DB_URL: str = Field(default="sqlite:///./papertrade.db")
+    DB_URL: str = Field(default="mysql+pymysql://root:root@localhost/ai_trading")
+    GROQ_API_KEY: str = Field(default=os.getenv("GROQ_API_KEY")) # Line 19 is now safe!
     JWT_SECRET: str = Field(default="dev-secret")
-    GROQ_API_KEY: str = Field(default="")
+    
 
     # Optional (safe defaults)
     APP_ENV: str = "local"

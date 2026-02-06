@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 1440
 
-    GROQ_MODEL: str = "llama-3.1-70b"
+    GROQ_MODEL: str = "openai/gpt-oss-120b"  # ✅ MAKE SURE THIS MATCHES YOUR TESTING
 
     MARKET_DATA_PROVIDER: str = "yfinance"
     PRICE_REFRESH_SECONDS: int = 5

@@ -35,102 +35,92 @@ def execute_trade(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user)
 ):
-
     symbol = order.symbol.upper()
     quantity = order.quantity
     side = order.side.upper()
-
-    if quantity <= 0:
-        raise HTTPException(400, "Quantity must be > 0")
-
-    if side not in ["BUY", "SELL"]:
-        raise HTTPException(400, "Invalid side")
-
-    # Fetch price
+    
     market = get_quote(symbol)
-
     if not market or not market.get("ltp"):
         raise HTTPException(400, "Price fetch failed")
-
+    
     price = Decimal(str(market.get("ltp")))
-    qty = Decimal(quantity)
-
-    total_value = (price * qty).quantize(
-        Decimal("0.01"),
-        rounding=ROUND_HALF_UP
-    )
-
-
+    total_value = (price * Decimal(quantity)).quantize(Decimal("0.01"))
 
     try:
+        # 1. Singular Query for an existing OPEN position
+        trade = db.query(Trade).filter(
+            Trade.user_id == user.id, 
+            Trade.symbol == symbol, 
+            Trade.status == "OPEN"
+        ).first()
 
-        # ================= BUY =================
         if side == "BUY":
-
+            # Check balance for fresh buys or adding to long
+            # (Note: In a more complex model, buying to cover a short might not need balance)
             if user.balance < total_value:
                 raise HTTPException(400, "Insufficient balance")
+            
+            user.balance -= total_value
 
-            user.balance = (user.balance - total_value).quantize(
-                Decimal("0.01")
-            )
+            if trade:
+                if trade.side == "BUY":
+                    # Scenario: Add to existing Long
+                    new_qty = trade.quantity + quantity
+                    total_cost = (trade.entry_price * trade.quantity) + (price * quantity)
+                    trade.entry_price = (total_cost / new_qty).quantize(Decimal("0.01"))
+                    trade.quantity = new_qty
+                else:
+                    # Scenario: Buy to Cover (Reducing a Short)
+                    if trade.quantity < quantity:
+                        raise HTTPException(400, f"Cannot buy more than shorted quantity ({trade.quantity})")
+                    trade.quantity -= quantity
+                    if trade.quantity == 0:
+                        trade.status = "CLOSED"
+                        trade.closed_at = datetime.utcnow()
+            else:
+                # Scenario: Fresh Long Position
+                db.add(Trade(
+                    user_id=user.id, symbol=symbol, side="BUY",
+                    quantity=quantity, entry_price=price, status="OPEN",
+                    opened_at=datetime.utcnow()
+                ))
 
+        elif side == "SELL":
+            if trade:
+                if trade.side == "BUY":
+                    # Scenario: Sell to Close (Reducing a Long)
+                    if trade.quantity < quantity:
+                        raise HTTPException(400, f"Insufficient shares. You have {trade.quantity}.")
+                    
+                    trade.quantity -= quantity
+                    user.balance = (user.balance + total_value).quantize(Decimal("0.01"))
+                    
+                    if trade.quantity == 0:
+                        trade.status = "CLOSED"
+                        trade.closed_at = datetime.utcnow()
+                        trade.exit_price = price
+                else:
+                    # Scenario: Sell to Open (Adding to existing Short)
+                    new_qty = trade.quantity + quantity
+                    total_cost = (trade.entry_price * trade.quantity) + (price * quantity)
+                    trade.entry_price = (total_cost / new_qty).quantize(Decimal("0.01"))
+                    trade.quantity = new_qty
+                    user.balance = (user.balance + total_value).quantize(Decimal("0.01"))
+            else:
+                # Scenario: Fresh Short Position
+                db.add(Trade(
+                    user_id=user.id, symbol=symbol, side="SELL",
+                    quantity=quantity, entry_price=price, status="OPEN",
+                    opened_at=datetime.utcnow()
+                ))
+                user.balance = (user.balance + total_value).quantize(Decimal("0.01"))
 
-            update_position(
-                db, user.id, symbol, quantity, price, True
-            )
-
-
-        # ================= SELL =================
-        else:
-
-            user.balance = (user.balance + total_value).quantize(
-                Decimal("0.01")
-            )
-
-
-            update_position(
-                db, user.id, symbol, quantity, price, False
-            )
-
-
-        # Save trade
-        trade = Trade(
-            user_id=user.id,
-            symbol=symbol,
-            side=side,
-            quantity=quantity,
-            entry_price=price,
-            status="OPEN",
-            trade_notes=order.trade_notes,
-            opened_at=datetime.utcnow()
-        )
-
-        db.add(trade)
         db.commit()
-        db.refresh(trade)
-
-        return {
-            "status": "success",
-            "symbol": symbol,
-            "side": side,
-            "qty": quantity,
-            "trade_id": trade.id,
-            "price": price,
-            "balance": round(float(user.balance), 2)
-        }
-
-
-    except HTTPException:
-        db.rollback()
-        raise
+        return {"status": "success", "balance": float(user.balance)}
 
     except Exception as e:
-
         db.rollback()
-        print("Trade Error:", e)
-
-        raise HTTPException(500, "Trade failed")
-
+        raise HTTPException(500, f"Transaction failed: {str(e)}")
 
 # ===============================
 # Close Trade (Square Off)
@@ -313,21 +303,20 @@ def update_position(
 
 
     # ================= SELL =================
+    # ================= SELL =================
     else:
-
-        pos = (
-            db.query(Position)
-            .filter_by(user_id=user.id, symbol=symbol)
-            .first()
-        )
-
-        # Prevent naked short beyond limit (optional)
-        if pos and pos.net_quantity < 0:
-            max_short = abs(pos.net_quantity) + quantity
-
-            if max_short > 1000:   # example limit
-                raise HTTPException(400, "Short limit exceeded")
-
+        if pos:
+            # If they have a long position, this reduces it (Sell to Close)
+            # If they have no position or are already short, this adds to short (Sell to Open)
+            pos.net_quantity -= quantity
+        else:
+            # Fresh Short Position
+            db.add(Position(
+                user_id=user_id,
+                symbol=symbol,
+                net_quantity=-quantity,
+                avg_price=price
+            ))
 
 
     # Update MTM

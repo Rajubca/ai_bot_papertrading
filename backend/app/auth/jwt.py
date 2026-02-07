@@ -19,33 +19,33 @@ def create_access_token(user_id: int):
 
 
 
-from fastapi import Header, HTTPException, status
 from jose import jwt, JWTError
 from app.config import settings
 
-def decode_access_token(authorization: str = Header(None)):
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization header"
-        )
+
+def decode_access_token(token: str):
+    """
+    Decodes JWT token and returns user_id
+    """
 
     try:
-        scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise ValueError("Invalid auth scheme")
-
         payload = jwt.decode(
             token,
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM]
         )
 
-        user_id = int(payload.get("sub"))
-        return {"id": user_id}
+        sub = payload.get("sub")
 
-    except (JWTError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
-        )
+        if sub is None:
+            return None
+
+        return int(sub)
+
+    except JWTError as e:
+        print("JWT Decode Error:", e)
+        return None
+
+    except Exception as e:
+        print("Token Error:", e)
+        return None

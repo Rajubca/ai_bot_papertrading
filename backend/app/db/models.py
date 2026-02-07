@@ -34,7 +34,12 @@ class Trade(Base):
     symbol = Column(String(20), nullable=False)
     side = Column(Enum("BUY", "SELL"), nullable=False)
     quantity = Column(Integer, nullable=False)
-    price = Column(DECIMAL(12, 2), nullable=False)
+    entry_price = Column(DECIMAL(12, 2), nullable=False)
+    exit_price = Column(DECIMAL(12, 2))
+    realized_pnl = Column(DECIMAL(15, 2), default=0)
+    opened_at = Column(DateTime, default=datetime.utcnow)
+    closed_at = Column(DateTime)
+
     order_type = Column(Enum("MARKET", "LIMIT"), default="MARKET")
     sl = Column(DECIMAL(12, 2))
     target = Column(DECIMAL(12, 2))

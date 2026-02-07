@@ -1,0 +1,11 @@
+#for stramlit run
+cd D:\RPrajapati\Raju\papertrade_ai\streamlit 
+streamlit run streamlit_app.py
+
+#for frontend run
+cd D:\RPrajapati\Raju\papertrade_ai\frontend
+npm run dev
+    
+#for backend run
+cd D:\RPrajapati\Raju\papertrade_ai\backend
+uvicorn app.main:app --reload --log-level debug

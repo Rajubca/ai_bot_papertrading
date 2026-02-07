@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.db.session import SessionLocal
 from app.auth.dependencies import get_current_user
+from app.db.session import SessionLocal
 from app.db.models import Position, User
 
 router = APIRouter()
@@ -16,23 +16,28 @@ def get_db():
         db.close()
 
 
-@router.get("")
+@router.get("/")
 def get_portfolio(
-    db: Session = Depends(get_db),
     user=Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    user_row = db.query(User).filter(User.id == user["id"]).first()
-    positions = db.query(Position).filter(Position.user_id == user["id"]).all()
+
+    positions = (
+        db.query(Position)
+        .filter(Position.user_id == user.id)
+        .all()
+    )
+
+    data = []
+
+    for p in positions:
+        data.append({
+            "symbol": p.symbol,
+            "quantity": p.net_quantity,
+            "avg_price": round(float(p.avg_price), 2)
+        })
 
     return {
-        "balance": float(user_row.balance) if user_row else 0,
-        "positions": [
-            {
-                "symbol": p.symbol,
-                "net_quantity": p.net_quantity,
-                "avg_price": float(p.avg_price),
-                "unrealized_pnl": float(p.unrealized_pnl),
-            }
-            for p in positions
-        ],
+        "balance": round(float(user.balance), 2),
+        "positions": data
     }

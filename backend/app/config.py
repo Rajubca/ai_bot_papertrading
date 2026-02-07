@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = Field(default=os.getenv("GROQ_API_KEY")) # Line 19 is now safe!
     JWT_SECRET: str = Field(default="dev-secret")
     
-
+    ALPHA_VANTAGE_KEY: str = Field(default=os.getenv("ALPHA_VANTAGE_KEY"))  # Line 22 is now safe!
     # Optional (safe defaults)
     APP_ENV: str = "local"
     APP_NAME: str = "papertrade-ai"

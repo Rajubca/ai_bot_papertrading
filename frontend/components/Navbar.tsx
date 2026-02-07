@@ -27,6 +27,9 @@ export default function Navbar() {
 
           {isLoggedIn && (
             <nav className="flex items-center gap-6">
+              <Link href="/portfolio" className={linkClass("/portfolio")}>
+                Portfolio
+              </Link>
               <Link href="/trades" className={linkClass("/trades")}>
                 Trades
               </Link>

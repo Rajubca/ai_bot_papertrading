@@ -1,96 +1,77 @@
-from fastapi import APIRouter
-import yfinance as yf
-import time
-import threading
+import requests
+from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
 
-CACHE_TTL = 15          # seconds
-STALE_TTL = 300         # 5 minutes
-FAIL_COOLDOWN = 60      # seconds
 
-_cache = {}
-_last_good = {}
-_failures = {}
-_lock = threading.Lock()
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/121.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.nseindia.com/",
+    "Origin": "https://www.nseindia.com",
+    "Connection": "keep-alive"
+}
+
+
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
+
+
+def fetch_nse(symbol: str):
+
+    # Step 1: Get cookies (mandatory)
+    SESSION.get("https://www.nseindia.com", timeout=10)
+
+    # Step 2: Fetch quote
+    url = "https://www.nseindia.com/api/quote-equity"
+
+    params = {
+        "symbol": symbol
+    }
+
+    res = SESSION.get(url, params=params, timeout=10)
+
+    if res.status_code != 200:
+        return None
+
+    return res.json()
+
 
 @router.get("/quote")
 def get_quote(symbol: str):
+
     symbol = symbol.upper()
-    now = time.time()
 
-    with _lock:
-        # Serve fresh cache
-        if symbol in _cache and now - _cache[symbol]["ts"] < CACHE_TTL:
-            return _cache[symbol]["data"]
-
-        # Serve stale price if Yahoo is failing
-        if symbol in _failures and symbol in _last_good:
-            if now - _last_good[symbol]["ts"] < STALE_TTL:
-                data = dict(_last_good[symbol]["data"])
-                data["stale"] = True
-                return data
-
-        # Cooldown (avoid hammering)
-        if symbol in _failures and now - _failures[symbol] < FAIL_COOLDOWN:
-            if symbol in _last_good:
-                data = dict(_last_good[symbol]["data"])
-                data["stale"] = True
-                return data
-
-    # Attempt Yahoo fetch
     try:
-        ticker = yf.Ticker(f"{symbol}.NS")
-        price = None
+        data = fetch_nse(symbol)
 
-        # SAFEST method
-        try:
-            price = ticker.fast_info.get("last_price")
-        except Exception:
-            pass
+        if not data:
+            raise HTTPException(502, "NSE API failed")
 
-        # LAST fallback (low frequency)
-        if not price:
-            hist = ticker.history(period="5d")
-            if not hist.empty:
-                price = float(hist["Close"].iloc[-1])
+        price = (
+            data.get("priceInfo", {})
+                .get("lastPrice")
+        )
 
-        if not price:
-            raise RuntimeError("No price")
+        if price is None:
+            raise HTTPException(404, "Price unavailable")
 
-        data = {
-            "symbol": symbol,
-            "ltp": round(price, 2),
-            "currency": "INR",
-            "source": "Yahoo Finance",
-            "delayed": True,
-            "stale": False,
-        }
-
-        with _lock:
-            _cache[symbol] = {"data": data, "ts": now}
-            _last_good[symbol] = {"data": data, "ts": now}
-            _failures.pop(symbol, None)
-
-        return data
-
-    except Exception:
-        with _lock:
-            _failures[symbol] = now
-
-        # Return stale if available
-        if symbol in _last_good:
-            data = dict(_last_good[symbol]["data"])
-            data["stale"] = True
-            return data
-
-        # Absolute last resort
         return {
             "symbol": symbol,
-            "ltp": None,
-            "currency": "INR",
-            "source": "Yahoo Finance",
-            "delayed": True,
-            "stale": True,
-            "error": "Price temporarily unavailable",
+            "ltp": round(float(price), 2),
+            "source": "nseindia",
+            "is_stale": True
         }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        print("NSE Error:", e)
+
+        raise HTTPException(503, "Market data unavailable")

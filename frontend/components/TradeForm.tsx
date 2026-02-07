@@ -64,7 +64,7 @@ export default function TradeForm() {
     setSuccess(null);
 
     try {
-      const res = await apiFetch("/api/trade", {
+      const res = await apiFetch("/api/trade/execute", {
         method: "POST",
         body: JSON.stringify({
           symbol,
